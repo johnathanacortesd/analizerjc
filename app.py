@@ -74,10 +74,13 @@ def detectar_duplicados_exactos(df):
     - Empresa igual, Titulo igual y Medio igual
     """
     columnas_requeridas = ['Empresa', 'Titulo', 'Medio']
-    for col in columnas_requeridas:
-        if col not in df.columns:
-            st.warning(f"⚠️ Columna '{col}' no encontrada. No se puede detectar duplicados exactos.")
-            return df
+    columnas_faltantes = [col for col in columnas_requeridas if col not in df.columns]
+    
+    if columnas_faltantes:
+        st.info(f"ℹ️ Detección de duplicados exactos omitida. Columnas faltantes: {', '.join(columnas_faltantes)}")
+        df['Es_Duplicado_Exacto'] = False
+        df['Grupo_Duplicado_Exacto'] = -1
+        return df
     
     df['Es_Duplicado_Exacto'] = False
     df['Grupo_Duplicado_Exacto'] = -1
@@ -107,10 +110,13 @@ def detectar_duplicados_similares(df, umbral_similitud=0.85):
     - Empresa igual, Titulo similar (>85%) y Medio igual
     """
     columnas_requeridas = ['Empresa', 'Titulo', 'Medio']
-    for col in columnas_requeridas:
-        if col not in df.columns:
-            st.warning(f"⚠️ Columna '{col}' no encontrada. No se puede detectar duplicados similares.")
-            return df
+    columnas_faltantes = [col for col in columnas_requeridas if col not in df.columns]
+    
+    if columnas_faltantes:
+        st.info(f"ℹ️ Detección de duplicados similares omitida. Columnas faltantes: {', '.join(columnas_faltantes)}")
+        df['Es_Duplicado_Similar'] = False
+        df['Grupo_Duplicado_Similar'] = -1
+        return df
     
     df['Es_Duplicado_Similar'] = False
     df['Grupo_Duplicado_Similar'] = -1
@@ -423,43 +429,197 @@ with st.sidebar:
     
     st.markdown("---")
     st.info("""
-    📋 **Columnas requeridas:**
-    - `Titulo` (obligatorio)
-    - `Resumen` (obligatorio)
-    - `Empresa` (para duplicados)
-    - `Medio` (para duplicados)
+    📋 **Proceso de carga:**
+    1. Sube tu archivo Excel
+    2. Selecciona las columnas a usar
+    3. Configura las opciones
+    4. Inicia el análisis
+    
+    **Columnas necesarias:**
+    - Título (obligatorio)
+    - Resumen/Aclaración (obligatorio)
+    - Empresa (opcional - duplicados)
+    - Medio (opcional - duplicados)
     """)
 
 # --- CARGA DE ARCHIVO ---
 st.subheader("📤 Sube tu archivo Excel")
+
+# Ayuda expandible
+with st.expander("❓ ¿Cómo funciona el selector de columnas?", expanded=False):
+    st.markdown("""
+    ### 🎯 Guía de Uso del Selector de Columnas
+    
+    **Paso 1: Sube tu archivo**
+    - Formatos soportados: `.xlsx`, `.xls`
+    - El archivo puede tener cualquier estructura
+    
+    **Paso 2: Selecciona las columnas**
+    
+    #### 📝 Columnas Obligatorias:
+    - **Título:** Columna con los títulos o encabezados de las noticias
+    - **Resumen/Aclaración:** Columna con el contenido, resumen o descripción
+    
+    #### 🔍 Columnas Opcionales (para duplicados):
+    - **Empresa:** Nombre de la organización mencionada
+    - **Medio:** Fuente o medio de comunicación
+    
+    **Paso 3: Vista previa**
+    - Verifica que las columnas seleccionadas sean correctas
+    - Revisa la vista previa del contenido procesado
+    
+    **Ejemplos de nombres de columnas reconocidos:**
+    - Título: `Titulo`, `Title`, `Encabezado`, `Headline`
+    - Resumen: `Resumen`, `Aclaración`, `Summary`, `Descripción`, `Contenido`
+    - Empresa: `Empresa`, `Company`, `Organización`, `Entidad`
+    - Medio: `Medio`, `Fuente`, `Source`, `Periódico`, `Diario`
+    
+    💡 **Tip:** La aplicación intentará sugerir automáticamente las columnas correctas basándose en sus nombres.
+    """)
+
 uploaded_file = st.file_uploader(
-    "Selecciona un archivo XLSX con columnas 'Titulo' y 'Resumen'",
+    "Selecciona un archivo XLSX",
     type=['xlsx', 'xls'],
-    help="Opcionalmente incluye 'Empresa' y 'Medio' para detección de duplicados"
+    help="Sube tu archivo Excel - puedes usar cualquier nombre de columna"
 )
 
 if uploaded_file:
     try:
-        df = pd.read_excel(uploaded_file)
+        df_original = pd.read_excel(uploaded_file)
         
-        # Validar columnas requeridas
-        if 'Titulo' not in df.columns or 'Resumen' not in df.columns:
-            st.error("❌ El archivo debe contener las columnas 'Titulo' y 'Resumen'")
-            st.stop()
+        st.success(f"✅ Archivo cargado: {len(df_original)} filas encontradas")
         
-        st.success(f"✅ Archivo cargado: {len(df)} noticias encontradas")
+        # Mostrar todas las columnas disponibles
+        with st.expander("👀 Vista previa y selección de columnas", expanded=True):
+            st.dataframe(df_original.head(10), use_container_width=True)
+            
+            st.markdown("---")
+            st.markdown("### 🎯 Selecciona las columnas a usar")
+            
+            columnas_disponibles = df_original.columns.tolist()
+            
+            # Función auxiliar para sugerir columna por nombre
+            def sugerir_columna(keywords, columnas):
+                """Sugiere una columna basándose en palabras clave"""
+                for keyword in keywords:
+                    for col in columnas:
+                        if keyword.lower() in col.lower():
+                            return col
+                return columnas[0] if columnas else None
+            
+            col_sel1, col_sel2 = st.columns(2)
+            
+            with col_sel1:
+                st.markdown("#### 📝 Columnas de Contenido (Obligatorias)")
+                
+                # Sugerir columna de título
+                titulo_sugerido = sugerir_columna(['titulo', 'title', 'encabezado', 'headline'], columnas_disponibles)
+                col_titulo = st.selectbox(
+                    "Columna de TÍTULO:",
+                    columnas_disponibles,
+                    index=columnas_disponibles.index(titulo_sugerido) if titulo_sugerido else 0,
+                    help="Selecciona la columna que contiene los títulos de las noticias"
+                )
+                
+                # Sugerir columna de resumen
+                resumen_sugerido = sugerir_columna(['resumen', 'aclaracion', 'aclaración', 'summary', 'descripcion', 'descripción', 'contenido', 'texto'], columnas_disponibles)
+                col_resumen = st.selectbox(
+                    "Columna de RESUMEN/ACLARACIÓN:",
+                    columnas_disponibles,
+                    index=columnas_disponibles.index(resumen_sugerido) if resumen_sugerido else 0,
+                    help="Selecciona la columna que contiene el resumen o aclaración"
+                )
+                
+                if col_titulo == col_resumen:
+                    st.error("⚠️ Las columnas de Título y Resumen deben ser diferentes")
+            
+            with col_sel2:
+                st.markdown("#### 🔍 Columnas para Duplicados (Opcionales)")
+                
+                # Sugerir columna de empresa
+                empresa_sugerido = sugerir_columna(['empresa', 'company', 'organizacion', 'organización', 'entidad'], columnas_disponibles)
+                col_empresa = st.selectbox(
+                    "Columna de EMPRESA:",
+                    ['No usar'] + columnas_disponibles,
+                    index=columnas_disponibles.index(empresa_sugerido) + 1 if empresa_sugerido else 0,
+                    help="Selecciona la columna que contiene el nombre de la empresa mencionada"
+                )
+                
+                # Sugerir columna de medio
+                medio_sugerido = sugerir_columna(['medio', 'fuente', 'source', 'periodico', 'periódico', 'diario'], columnas_disponibles)
+                col_medio = st.selectbox(
+                    "Columna de MEDIO:",
+                    ['No usar'] + columnas_disponibles,
+                    index=columnas_disponibles.index(medio_sugerido) + 1 if medio_sugerido else 0,
+                    help="Selecciona la columna que contiene el medio de comunicación"
+                )
+            
+            # Validar selección
+            if col_titulo == col_resumen:
+                st.error("❌ Debes seleccionar columnas diferentes para Título y Resumen")
+                st.stop()
+            
+            # Crear DataFrame de trabajo con columnas renombradas
+            df = df_original.copy()
+            df['Titulo'] = df[col_titulo]
+            df['Resumen'] = df[col_resumen]
+            
+            if col_empresa != 'No usar':
+                df['Empresa'] = df[col_empresa]
+            
+            if col_medio != 'No usar':
+                df['Medio'] = df[col_medio]
+            
+            # Mostrar resumen de selección
+            st.markdown("---")
+            st.markdown("#### ✅ Configuración de Columnas")
+            col_info1, col_info2, col_info3, col_info4 = st.columns(4)
+            
+            with col_info1:
+                st.info(f"📰 **Título:**\n`{col_titulo}`")
+            with col_info2:
+                st.info(f"📝 **Resumen:**\n`{col_resumen}`")
+            with col_info3:
+                if col_empresa != 'No usar':
+                    st.success(f"🏢 **Empresa:**\n`{col_empresa}`")
+                else:
+                    st.warning("🏢 **Empresa:**\nNo configurada")
+            with col_info4:
+                if col_medio != 'No usar':
+                    st.success(f"📡 **Medio:**\n`{col_medio}`")
+                else:
+                    st.warning("📡 **Medio:**\nNo configurado")
+            
+            # Vista previa de contenido procesado
+            st.markdown("---")
+            st.markdown("#### 📖 Vista Previa del Contenido Procesado")
+            
+            preview_df = pd.DataFrame({
+                'Título': df['Titulo'].head(3),
+                'Resumen': df['Resumen'].head(3).apply(lambda x: str(x)[:150] + '...' if pd.notna(x) and len(str(x)) > 150 else str(x))
+            })
+            
+            if col_empresa != 'No usar':
+                preview_df['Empresa'] = df['Empresa'].head(3)
+            if col_medio != 'No usar':
+                preview_df['Medio'] = df['Medio'].head(3)
+            
+            st.dataframe(preview_df, use_container_width=True, hide_index=True)
         
         # Validar columnas para duplicados
-        columnas_duplicados = ['Empresa', 'Medio']
-        columnas_faltantes = [col for col in columnas_duplicados if col not in df.columns]
-        
-        if columnas_faltantes and detectar_duplicados:
-            st.warning(f"⚠️ Columnas faltantes para detección completa de duplicados: {', '.join(columnas_faltantes)}")
-            st.info("💡 La detección de duplicados será limitada sin estas columnas")
-        
-        # Mostrar vista previa
-        with st.expander("👀 Vista previa de datos"):
-            st.dataframe(df.head(10), use_container_width=True)
+        if detectar_duplicados:
+            if col_empresa == 'No usar' or col_medio == 'No usar':
+                st.warning("⚠️ **Detección de duplicados limitada:** Para detección completa se requieren columnas Empresa y Medio")
+                
+                columnas_faltantes = []
+                if col_empresa == 'No usar':
+                    columnas_faltantes.append('Empresa')
+                if col_medio == 'No usar':
+                    columnas_faltantes.append('Medio')
+                
+                st.info(f"💡 Columnas faltantes: {', '.join(columnas_faltantes)}. La detección funcionará con las columnas disponibles.")
+            else:
+                st.success("✅ Todas las columnas necesarias para detección de duplicados están configuradas")
         
         # --- BOTÓN DE ANÁLISIS ---
         if st.button("🚀 Iniciar Análisis Inteligente", type="primary", use_container_width=True):
@@ -1063,9 +1223,9 @@ if st.button("🗑️ Reiniciar Análisis Completo"):
 
 st.markdown("""
 <div style='text-align: center; color: #666; margin-top: 2rem;'>
-    <p><strong>Analizador Inteligente de Noticias v2.0</strong></p>
+    <p><strong>Analizador Inteligente de Noticias v2.1</strong></p>
     <p style='font-size: 0.9rem;'>🤖 Llama 3.1 70B Versatile | 🏷️ Temas Dinámicos | 🔍 Detección Avanzada de Duplicados</p>
-    <p style='font-size: 0.85rem;'>✨ Duplicados NO son analizados - Sentimiento y Tema heredados del original</p>
-    <p style='font-size: 0.8rem; margin-top: 0.5rem;'>📊 Análisis inteligente con Machine Learning</p>
+    <p style='font-size: 0.85rem;'>✨ Selector flexible de columnas | Duplicados heredan análisis del original</p>
+    <p style='font-size: 0.8rem; margin-top: 0.5rem;'>📊 Compatible con cualquier estructura de Excel</p>
 </div>
 """, unsafe_allow_html=True)
