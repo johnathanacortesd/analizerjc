@@ -195,7 +195,7 @@ FORMATO DE SALIDA (JSON):
 }}"""},
                 {"role": "user", "content": f"Analiza estas {muestra_size} noticias y descubre los {num_temas} temas principales:\n\n{textos_muestra}"}
             ],
-            model="llama3-70b-8192", # <-- CORREGIDO: Modelo actualizado
+            model="llama3-70b-8192",
             temperature=0.2,
             max_tokens=2000,
             response_format={"type": "json_object"}
@@ -243,7 +243,7 @@ FORMATO DE SALIDA (JSON):
 ]}}"""},
                     {"role": "user", "content": f"Analiza el sentimiento de estas noticias:\n\n{textos_numerados}"}
                 ],
-                model="llama3-70b-8192", # <-- CORREGIDO: Modelo actualizado
+                model="llama3-70b-8192",
                 temperature=0.1,
                 max_tokens=3000,
                 response_format={"type": "json_object"}
@@ -290,7 +290,7 @@ FORMATO DE SALIDA (JSON):
 ]}}"""},
                     {"role": "user", "content": f"Clasifica estas noticias:\n\n{textos_numerados}"}
                 ],
-                model="llama3-70b-8192", # <-- CORREGIDO: Modelo actualizado
+                model="llama3-70b-8192",
                 temperature=0.1,
                 max_tokens=2500,
                 response_format={"type": "json_object"}
@@ -343,7 +343,7 @@ Primeras 5 noticias como muestra:
 {df[['Titulo']].head().to_string() if 'Titulo' in df.columns else 'N/A'}
 {prompt_cliente}"""}
             ],
-            model="llama3-70b-8192", # <-- CORREGIDO: Modelo actualizado
+            model="llama3-70b-8192",
             temperature=0.3,
             max_tokens=2000,
             response_format={"type": "json_object"}
@@ -390,7 +390,7 @@ INSTRUCCIONES:
         
         chat_completion = client.chat.completions.create(
             messages=mensajes,
-            model="llama3-70b-8192", # <-- CORREGIDO: Modelo actualizado
+            model="llama3-70b-8192",
             temperature=0.2,
             max_tokens=1500
         )
@@ -654,7 +654,6 @@ if uploaded_file:
             status_text = st.empty()
             
             # Preparar textos para análisis
-            # <-- CORREGIDO: Convertido a string para evitar errores de tipo al concatenar
             df['Texto_Completo'] = df['Titulo'].fillna('').astype(str) + '. ' + df['Resumen'].fillna('').astype(str)
             textos = df['Texto_Completo'].tolist()
             
@@ -693,7 +692,7 @@ if uploaded_file:
                 progress_bar.progress(50)
                 
                 # Filtrar no duplicados para análisis
-                mask_no_duplicados = ~(df.get('Es_Duplicado_Exacto', False) | df.get('Es_Duplicado_Similar', False))
+                mask_no_duplicados = (~(df.get('Es_Duplicado_Exacto', pd.Series(False, index=df.index)))) & (~(df.get('Es_Duplicado_Similar', pd.Series(False, index=df.index))))
                 df_analizar = df[mask_no_duplicados]
                 
                 textos_analizar = df_analizar['Texto_Completo'].tolist()
@@ -724,7 +723,7 @@ if uploaded_file:
                                         df.loc[grupo_mask, 'Razon_Sentimiento'] = razon_grupo + " [Duplicado]"
                     
                     # Marcar duplicados sin análisis
-                    duplicados_sin_analisis = df[~mask_no_duplicados & df['Sentimiento'].isna()]
+                    duplicados_sin_analisis = df[(~mask_no_duplicados) & (df['Sentimiento'].isna())]
                     if not duplicados_sin_analisis.empty:
                         df.loc[duplicados_sin_analisis.index, 'Sentimiento'] = 'Sin Analizar'
                         df.loc[duplicados_sin_analisis.index, 'Score_Sentimiento'] = 0
@@ -738,7 +737,7 @@ if uploaded_file:
                 temas_disponibles = st.session_state.temas_descubiertos
                 
                 # Filtrar no duplicados
-                mask_no_duplicados = ~(df.get('Es_Duplicado_Exacto', False) | df.get('Es_Duplicado_Similar', False))
+                mask_no_duplicados = (~(df.get('Es_Duplicado_Exacto', pd.Series(False, index=df.index)))) & (~(df.get('Es_Duplicado_Similar', pd.Series(False, index=df.index))))
                 df_analizar = df[mask_no_duplicados]
                 
                 textos_analizar = df_analizar['Texto_Completo'].tolist()
@@ -765,7 +764,7 @@ if uploaded_file:
                                         df.loc[grupo_mask, 'Confianza_Tema'] = confianza_grupo
                     
                     # Marcar duplicados sin clasificar
-                    duplicados_sin_clasificar = df[~mask_no_duplicados & df['Tema'].isna()]
+                    duplicados_sin_clasificar = df[(~mask_no_duplicados) & (df['Tema'].isna())]
                     if not duplicados_sin_clasificar.empty:
                         df.loc[duplicados_sin_clasificar.index, 'Tema'] = 'Sin clasificar'
                         df.loc[duplicados_sin_clasificar.index, 'Confianza_Tema'] = 0
@@ -825,4 +824,439 @@ if st.session_state.get('analysis_done', False):
                 st.metric("🟡 Duplicados Similares", duplicados_similares)
         
         with col4:
-            noticias_unicas = len(df[~df.get('Es_Duplicado_Exacto', False) & ~df.get('Es_Duplicado_Similar',
+            # <-- CORREGIDO: Añadidos paréntesis a cada condición
+            noticias_unicas = len(df[(~df.get('Es_Duplicado_Exacto', False)) & (~df.get('Es_Duplicado_Similar', False))])
+            st.metric("✅ Noticias Únicas", noticias_unicas)
+        
+        with col5:
+            if 'Tema' in df.columns:
+                temas_unicos = df['Tema'].nunique()
+                st.metric("🏷️ Temas Descubiertos", temas_unicos)
+        
+        st.markdown("---")
+        
+        # Gráficos
+        col_g1, col_g2 = st.columns(2)
+        
+        with col_g1:
+            if 'Sentimiento' in df.columns:
+                st.markdown("#### 💭 Distribución de Sentimientos")
+                # <-- CORREGIDO: Añadidos paréntesis a cada condición
+                df_unicos = df[(~df.get('Es_Duplicado_Exacto', False)) & (~df.get('Es_Duplicado_Similar', False))]
+                
+                fig_sentiment = px.pie(
+                    df_unicos, 
+                    names='Sentimiento',
+                    title='(Solo noticias únicas analizadas)',
+                    color='Sentimiento',
+                    color_discrete_map={
+                        'Muy Positivo': '#2ECC71',
+                        'Positivo': '#85C1E2',
+                        'Neutral': '#95A5A6',
+                        'Negativo': '#E67E22',
+                        'Muy Negativo': '#E74C3C',
+                        'Sin Analizar': '#BDC3C7'
+                    }
+                )
+                st.plotly_chart(fig_sentiment, use_container_width=True)
+        
+        with col_g2:
+            if 'Tema' in df.columns:
+                st.markdown("#### 🏷️ Top 10 Temas Descubiertos")
+                # <-- CORREGIDO: Añadidos paréntesis a cada condición
+                df_unicos = df[(~df.get('Es_Duplicado_Exacto', False)) & (~df.get('Es_Duplicado_Similar', False))]
+                temas_count = df_unicos['Tema'].value_counts().head(10)
+                
+                fig_temas = px.bar(
+                    x=temas_count.values,
+                    y=temas_count.index,
+                    orientation='h',
+                    title='(Solo noticias únicas)',
+                    labels={'x': 'Cantidad', 'y': 'Tema'}
+                )
+                fig_temas.update_layout(showlegend=False, height=400)
+                st.plotly_chart(fig_temas, use_container_width=True)
+        
+        # Análisis por tema y sentimiento
+        if 'Tema' in df.columns and 'Sentimiento' in df.columns:
+            st.markdown("---")
+            st.markdown("#### 🎯 Sentimiento por Tema (Noticias Únicas)")
+            
+            # <-- CORREGIDO: Añadidos paréntesis a cada condición
+            df_unicos = df[(~df.get('Es_Duplicado_Exacto', False)) & (~df.get('Es_Duplicado_Similar', False))]
+            
+            if not df_unicos.empty:
+                tema_sentimiento = df_unicos.groupby(['Tema', 'Sentimiento']).size().reset_index(name='Cantidad')
+                fig_heatmap = px.density_heatmap(
+                    tema_sentimiento,
+                    x='Sentimiento',
+                    y='Tema',
+                    z='Cantidad',
+                    title='',
+                    color_continuous_scale='Blues'
+                )
+                fig_heatmap.update_layout(height=500)
+                st.plotly_chart(fig_heatmap, use_container_width=True)
+        
+        # Estadísticas de duplicados
+        if 'Es_Duplicado_Exacto' in df.columns or 'Es_Duplicado_Similar' in df.columns:
+            st.markdown("---")
+            st.markdown("#### 📊 Análisis de Duplicados")
+            
+            col_d1, col_d2, col_d3 = st.columns(3)
+            
+            with col_d1:
+                duplicados_exactos = len(df[df.get('Es_Duplicado_Exacto', False)])
+                porcentaje_exactos = (duplicados_exactos / len(df) * 100) if len(df) > 0 else 0
+                st.metric("Duplicados Exactos", f"{duplicados_exactos}", f"{porcentaje_exactos:.1f}%")
+            
+            with col_d2:
+                duplicados_similares = len(df[df.get('Es_Duplicado_Similar', False)])
+                porcentaje_similares = (duplicados_similares / len(df) * 100) if len(df) > 0 else 0
+                st.metric("Duplicados Similares", f"{duplicados_similares}", f"{porcentaje_similares:.1f}%")
+            
+            with col_d3:
+                total_duplicados = duplicados_exactos + duplicados_similares
+                porcentaje_total = (total_duplicados / len(df) * 100) if len(df) > 0 else 0
+                st.metric("Total Duplicados", f"{total_duplicados}", f"{porcentaje_total:.1f}%")
+    
+    # TAB 2: DATOS ANALIZADOS
+    with tabs[1]:
+        st.subheader("🗂️ Datos Analizados")
+        
+        # Filtros
+        col_f1, col_f2, col_f3, col_f4 = st.columns(4)
+        
+        with col_f1:
+            if 'Tema' in df.columns:
+                temas_filtro = ['Todos'] + sorted(df['Tema'].unique().tolist())
+                tema_seleccionado = st.selectbox("Filtrar por Tema", temas_filtro)
+        
+        with col_f2:
+            if 'Sentimiento' in df.columns:
+                sentimientos_filtro = ['Todos'] + sorted(df['Sentimiento'].unique().tolist())
+                sentimiento_seleccionado = st.selectbox("Filtrar por Sentimiento", sentimientos_filtro)
+        
+        with col_f3:
+            tipo_duplicado = st.selectbox("Tipo de noticia", 
+                                         ['Todas', 'Solo Únicas', 'Solo Duplicados Exactos', 'Solo Duplicados Similares'])
+        
+        with col_f4:
+            busqueda = st.text_input("🔍 Buscar texto")
+        
+        # Aplicar filtros
+        df_filtrado = df.copy()
+        
+        if 'Tema' in df.columns and tema_seleccionado != 'Todos':
+            df_filtrado = df_filtrado[df_filtrado['Tema'] == tema_seleccionado]
+        
+        if 'Sentimiento' in df.columns and sentimiento_seleccionado != 'Todos':
+            df_filtrado = df_filtrado[df_filtrado['Sentimiento'] == sentimiento_seleccionado]
+        
+        if tipo_duplicado == 'Solo Únicas':
+            # <-- CORREGIDO: Añadidos paréntesis a cada condición
+            df_filtrado = df_filtrado[(~df_filtrado.get('Es_Duplicado_Exacto', False)) & (~df_filtrado.get('Es_Duplicado_Similar', False))]
+        elif tipo_duplicado == 'Solo Duplicados Exactos':
+            df_filtrado = df_filtrado[df_filtrado.get('Es_Duplicado_Exacto', False)]
+        elif tipo_duplicado == 'Solo Duplicados Similares':
+            df_filtrado = df_filtrado[df_filtrado.get('Es_Duplicado_Similar', False)]
+        
+        if busqueda:
+            mask = df_filtrado['Titulo'].astype(str).str.contains(busqueda, case=False, na=False) | \
+                   df_filtrado['Resumen'].astype(str).str.contains(busqueda, case=False, na=False)
+            df_filtrado = df_filtrado[mask]
+        
+        st.info(f"📊 Mostrando {len(df_filtrado)} de {len(df)} noticias")
+        
+        # Mostrar datos
+        columnas_mostrar = ['Titulo', 'Resumen']
+        
+        if 'Empresa' in df.columns:
+            columnas_mostrar.append('Empresa')
+        if 'Medio' in df.columns:
+            columnas_mostrar.append('Medio')
+        if 'Sentimiento' in df.columns:
+            columnas_mostrar.extend(['Sentimiento', 'Score_Sentimiento'])
+        if 'Tema' in df.columns:
+            columnas_mostrar.append('Tema')
+        if 'Es_Duplicado_Exacto' in df.columns:
+            columnas_mostrar.append('Es_Duplicado_Exacto')
+        if 'Es_Duplicado_Similar' in df.columns:
+            columnas_mostrar.append('Es_Duplicado_Similar')
+        
+        # Filtrar solo columnas que existen
+        columnas_mostrar = [col for col in columnas_mostrar if col in df_filtrado.columns]
+        
+        st.dataframe(
+            df_filtrado[columnas_mostrar].style.apply(
+                lambda x: ['background-color: #ffe6e6' if x.get('Es_Duplicado_Exacto', False) 
+                          else 'background-color: #fff4e6' if x.get('Es_Duplicado_Similar', False) 
+                          else '' for i in x], 
+                axis=1
+            ),
+            use_container_width=True,
+            height=500
+        )
+        
+        # Leyenda de colores
+        st.markdown("""
+        **Leyenda:**
+        - 🔴 <span style='background-color: #ffe6e6; padding: 2px 8px;'>Duplicado Exacto</span>
+        - 🟡 <span style='background-color: #fff4e6; padding: 2px 8px;'>Duplicado Similar</span>
+        - ⚪ Sin color: Noticia única
+        """, unsafe_allow_html=True)
+        
+        # Descargar resultados
+        st.markdown("---")
+        col_d1, col_d2 = st.columns(2)
+        
+        with col_d1:
+            csv = df.to_csv(index=False).encode('utf-8')
+            st.download_button(
+                "💾 Descargar CSV Completo",
+                csv,
+                "analisis_noticias_completo.csv",
+                "text/csv",
+                use_container_width=True
+            )
+        
+        with col_d2:
+            # Solo noticias únicas
+            # <-- CORREGIDO: Añadidos paréntesis a cada condición
+            df_unicos = df[(~df.get('Es_Duplicado_Exacto', False)) & (~df.get('Es_Duplicado_Similar', False))]
+            csv_unicos = df_unicos.to_csv(index=False).encode('utf-8')
+            st.download_button(
+                "💾 Descargar Solo Únicas",
+                csv_unicos,
+                "analisis_noticias_unicas.csv",
+                "text/csv",
+                use_container_width=True
+            )
+    
+    # TAB 3: DUPLICADOS
+    with tabs[2]:
+        st.subheader("🔍 Análisis Detallado de Duplicados")
+        
+        # Estadísticas generales
+        col_stat1, col_stat2, col_stat3 = st.columns(3)
+        
+        with col_stat1:
+            if 'Grupo_Duplicado_Exacto' in df.columns:
+                grupos_exactos = df[df['Grupo_Duplicado_Exacto'] >= 0]['Grupo_Duplicado_Exacto'].nunique()
+                st.metric("📑 Grupos Duplicados Exactos", grupos_exactos)
+        
+        with col_stat2:
+            if 'Grupo_Duplicado_Similar' in df.columns:
+                grupos_similares = df[df['Grupo_Duplicado_Similar'] >= 0]['Grupo_Duplicado_Similar'].nunique()
+                st.metric("📑 Grupos Duplicados Similares", grupos_similares)
+        
+        with col_stat3:
+            # <-- CORREGIDO: Añadidos paréntesis a cada condición
+            noticias_unicas = len(df[(~df.get('Es_Duplicado_Exacto', False)) & (~df.get('Es_Duplicado_Similar', False))])
+            st.metric("✅ Noticias Únicas", noticias_unicas)
+        
+        st.markdown("---")
+        
+        # Selector de tipo de duplicado
+        tipo_ver = st.radio("Ver duplicados:", ['Exactos', 'Similares'], horizontal=True)
+        
+        if tipo_ver == 'Exactos' and 'Grupo_Duplicado_Exacto' in df.columns:
+            st.markdown("#### 🔴 Duplicados Exactos")
+            st.info("Empresa + Titulo + Medio idénticos")
+            
+            grupos = df[df['Grupo_Duplicado_Exacto'] >= 0].groupby('Grupo_Duplicado_Exacto')
+            
+            if len(grupos) > 0:
+                for grupo_id, grupo_df in grupos:
+                    with st.expander(f"📑 Grupo {int(grupo_id) + 1} - {len(grupo_df)} menciones idénticas", expanded=False):
+                        # Información del grupo
+                        col_info1, col_info2, col_info3 = st.columns(3)
+                        
+                        with col_info1:
+                            if 'Empresa' in grupo_df.columns:
+                                st.markdown(f"**🏢 Empresa:** {grupo_df.iloc[0]['Empresa']}")
+                        with col_info2:
+                            if 'Medio' in grupo_df.columns:
+                                st.markdown(f"**📰 Medio:** {grupo_df.iloc[0]['Medio']}")
+                        with col_info3:
+                            if 'Sentimiento' in grupo_df.columns:
+                                st.markdown(f"**💭 Sentimiento:** {grupo_df.iloc[0]['Sentimiento']}")
+                        
+                        st.markdown("---")
+                        st.markdown(f"**📰 Título:** {grupo_df.iloc[0]['Titulo']}")
+                        st.markdown(f"**📝 Resumen:** {str(grupo_df.iloc[0]['Resumen'])[:300]}...")
+                        
+                        if 'Tema' in grupo_df.columns:
+                            st.markdown(f"**🏷️ Tema:** {grupo_df.iloc[0]['Tema']}")
+            else:
+                st.success("✅ No se encontraron duplicados exactos")
+        
+        elif tipo_ver == 'Similares' and 'Grupo_Duplicado_Similar' in df.columns:
+            st.markdown("#### 🟡 Duplicados Similares")
+            st.info(f"Empresa + Medio iguales, Título similar (≥{umbral_similitud}%)")
+            
+            grupos = df[df['Grupo_Duplicado_Similar'] >= 0].groupby('Grupo_Duplicado_Similar')
+            
+            if len(grupos) > 0:
+                for grupo_id, grupo_df in grupos:
+                    with st.expander(f"📑 Grupo {int(grupo_id) + 1} - {len(grupo_df)} menciones similares", expanded=False):
+                        # Información del grupo
+                        col_info1, col_info2, col_info3 = st.columns(3)
+                        
+                        with col_info1:
+                            if 'Empresa' in grupo_df.columns:
+                                st.markdown(f"**🏢 Empresa:** {grupo_df.iloc[0]['Empresa']}")
+                        with col_info2:
+                            if 'Medio' in grupo_df.columns:
+                                st.markdown(f"**📰 Medio:** {grupo_df.iloc[0]['Medio']}")
+                        with col_info3:
+                            if 'Sentimiento' in grupo_df.columns:
+                                st.markdown(f"**💭 Sentimiento:** {grupo_df.iloc[0]['Sentimiento']}")
+                        
+                        st.markdown("---")
+                        
+                        # Mostrar todas las variaciones del título
+                        for idx, row in grupo_df.iterrows():
+                            st.markdown(f"**Variación {idx+1}:**")
+                            st.markdown(f"📰 {row['Titulo']}")
+                            if 'Tema' in row:
+                                st.markdown(f"🏷️ {row['Tema']}")
+                            st.markdown("---")
+            else:
+                st.success("✅ No se encontraron duplicados similares")
+    
+    # TAB 4: INSIGHTS
+    with tabs[3]:
+        st.subheader("🧠 Insights Estratégicos")
+        
+        if 'insights' in st.session_state and st.session_state.insights:
+            insights = st.session_state.insights
+            
+            # Resumen Ejecutivo
+            if 'resumen_ejecutivo' in insights:
+                st.markdown("### 📋 Resumen Ejecutivo")
+                st.info(insights['resumen_ejecutivo'])
+            
+            # Hallazgos de duplicados
+            if 'hallazgos_duplicados' in insights:
+                st.markdown("### 🔍 Análisis de Duplicados")
+                st.warning(insights['hallazgos_duplicados'])
+            
+            st.markdown("---")
+            
+            col_i1, col_i2 = st.columns(2)
+            
+            with col_i1:
+                # Tendencias
+                if 'tendencias_clave' in insights:
+                    st.markdown("### 📈 Tendencias Clave")
+                    for i, tendencia in enumerate(insights['tendencias_clave'], 1):
+                        st.markdown(f"**{i}.** {tendencia}")
+                
+                st.markdown("")
+                
+                # Oportunidades
+                if 'oportunidades' in insights:
+                    st.markdown("### ✅ Oportunidades")
+                    for i, oportunidad in enumerate(insights['oportunidades'], 1):
+                        st.success(f"**{i}.** {oportunidad}")
+            
+            with col_i2:
+                # Riesgos
+                if 'riesgos' in insights:
+                    st.markdown("### ⚠️ Riesgos")
+                    for i, riesgo in enumerate(insights['riesgos'], 1):
+                        st.warning(f"**{i}.** {riesgo}")
+                
+                st.markdown("")
+                
+                # Recomendaciones
+                if 'recomendaciones' in insights:
+                    st.markdown("### 💡 Recomendaciones")
+                    for i, recomendacion in enumerate(insights['recomendaciones'], 1):
+                        st.markdown(f"**{i}.** {recomendacion}")
+        else:
+            st.info("No se generaron insights. Activa la opción en el sidebar y vuelve a analizar.")
+    
+    # TAB 5: CHAT IA
+    with tabs[4]:
+        st.subheader("💬 Chat Inteligente con tus Datos")
+        st.markdown("*Haz preguntas sobre el análisis de noticias*")
+        
+        # Mostrar historial
+        for item in st.session_state.chat_history:
+            with st.chat_message("user"):
+                st.markdown(item["pregunta"])
+            with st.chat_message("assistant"):
+                st.markdown(item["respuesta"])
+        
+        # Input de pregunta
+        pregunta_usuario = st.chat_input("Escribe tu pregunta aquí...")
+        
+        if pregunta_usuario:
+            # Agregar pregunta al chat
+            with st.chat_message("user"):
+                st.markdown(pregunta_usuario)
+            
+            # Generar respuesta
+            with st.chat_message("assistant"):
+                with st.spinner("🤔 Analizando..."):
+                    respuesta = chat_con_datos(
+                        pregunta_usuario, 
+                        df, 
+                        st.session_state.chat_history
+                    )
+                    st.markdown(respuesta)
+            
+            # Guardar en historial
+            st.session_state.chat_history.append({
+                "pregunta": pregunta_usuario,
+                "respuesta": respuesta
+            })
+            st.rerun()
+        
+        # Botón para limpiar chat
+        if st.session_state.chat_history:
+            if st.button("🗑️ Limpiar Conversación"):
+                st.session_state.chat_history = []
+                st.rerun()
+        
+        # Preguntas sugeridas
+        st.markdown("---")
+        st.markdown("**💡 Preguntas sugeridas:**")
+        col_s1, col_s2, col_s3 = st.columns(3)
+        
+        sugerencias = [
+            "¿Cuáles son los temas más mencionados?",
+            "¿Qué porcentaje de noticias son duplicadas?",
+            "¿Cuál es el sentimiento general?",
+            "¿Qué empresa tiene más menciones?",
+            "Resume las noticias más negativas",
+            "¿Qué tema tiene peor sentimiento?"
+        ]
+        
+        for i, sugerencia in enumerate(sugerencias[:3]):
+            with col_s1 if i == 0 else col_s2 if i == 1 else col_s3:
+                if st.button(sugerencia, key=f"sug_{i}"):
+                    st.session_state.chat_history.append({
+                        "pregunta": sugerencia,
+                        "respuesta": "Procesando..."
+                    })
+                    st.rerun()
+
+# --- PIE DE PÁGINA ---
+st.markdown("---")
+if st.button("🗑️ Reiniciar Análisis Completo"):
+    for key in list(st.session_state.keys()):
+        if key not in ['password_correct']:
+            del st.session_state[key]
+    st.rerun()
+
+st.markdown("""
+<div style='text-align: center; color: #666; margin-top: 2rem;'>
+    <p><strong>Analizador Inteligente de Noticias v2.3 (Corregido)</strong></p>
+    <p style='font-size: 0.9rem;'>🤖 Llama 3 70B (Groq) | 🏷️ Temas Dinámicos | 🔍 Detección Avanzada de Duplicados</p>
+    <p style='font-size: 0.85rem;'>✨ Selector flexible de columnas | Duplicados heredan análisis del original</p>
+    <p style='font-size: 0.8rem; margin-top: 0.5rem;'>📊 Compatible con cualquier estructura de Excel</p>
+</div>
+""", unsafe_allow_html=True)
