@@ -195,7 +195,7 @@ FORMATO DE SALIDA (JSON):
 }}"""},
                 {"role": "user", "content": f"Analiza estas {muestra_size} noticias y descubre los {num_temas} temas principales:\n\n{textos_muestra}"}
             ],
-            model="meta-llama-3.1-70b-instruct", # <-- CORREGIDO
+            model="llama-3.3-70b-versatile", # <-- CORREGIDO
             temperature=0.2,
             max_tokens=2000,
             response_format={"type": "json_object"}
@@ -243,7 +243,7 @@ FORMATO DE SALIDA (JSON):
 ]}}"""},
                     {"role": "user", "content": f"Analiza el sentimiento de estas noticias:\n\n{textos_numerados}"}
                 ],
-                model="meta-llama-3.1-70b-instruct", # <-- CORREGIDO
+                model="llama-3.3-70b-versatile", # <-- CORREGIDO
                 temperature=0.1,
                 max_tokens=3000,
                 response_format={"type": "json_object"}
@@ -290,7 +290,7 @@ FORMATO DE SALIDA (JSON):
 ]}}"""},
                     {"role": "user", "content": f"Clasifica estas noticias:\n\n{textos_numerados}"}
                 ],
-                model="meta-llama-3.1-70b-instruct", # <-- CORREGIDO
+                model="llama-3.3-70b-versatile", # <-- CORREGIDO
                 temperature=0.1,
                 max_tokens=2500,
                 response_format={"type": "json_object"}
@@ -343,7 +343,7 @@ Primeras 5 noticias como muestra:
 {df[['Titulo']].head().to_string() if 'Titulo' in df.columns else 'N/A'}
 {prompt_cliente}"""}
             ],
-            model="meta-llama-3.1-70b-instruct", # <-- CORREGIDO
+            model="llama-3.3-70b-versatile", # <-- CORREGIDO
             temperature=0.3,
             max_tokens=2000,
             response_format={"type": "json_object"}
@@ -390,7 +390,7 @@ INSTRUCCIONES:
         
         chat_completion = client.chat.completions.create(
             messages=mensajes,
-            model="meta-llama-3.1-70b-instruct", # <-- CORREGIDO
+            model="llama-3.3-70b-versatile", # <-- CORREGIDO
             temperature=0.2,
             max_tokens=1500
         )
