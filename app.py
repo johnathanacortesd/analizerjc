@@ -195,7 +195,7 @@ FORMATO DE SALIDA (JSON):
 }}"""},
                 {"role": "user", "content": f"Analiza estas {muestra_size} noticias y descubre los {num_temas} temas principales:\n\n{textos_muestra}"}
             ],
-            model="llama3-70b-8192",
+            model="meta-llama-3.1-70b-instruct", # <-- CORREGIDO
             temperature=0.2,
             max_tokens=2000,
             response_format={"type": "json_object"}
@@ -243,7 +243,7 @@ FORMATO DE SALIDA (JSON):
 ]}}"""},
                     {"role": "user", "content": f"Analiza el sentimiento de estas noticias:\n\n{textos_numerados}"}
                 ],
-                model="llama3-70b-8192",
+                model="meta-llama-3.1-70b-instruct", # <-- CORREGIDO
                 temperature=0.1,
                 max_tokens=3000,
                 response_format={"type": "json_object"}
@@ -290,7 +290,7 @@ FORMATO DE SALIDA (JSON):
 ]}}"""},
                     {"role": "user", "content": f"Clasifica estas noticias:\n\n{textos_numerados}"}
                 ],
-                model="llama3-70b-8192",
+                model="meta-llama-3.1-70b-instruct", # <-- CORREGIDO
                 temperature=0.1,
                 max_tokens=2500,
                 response_format={"type": "json_object"}
@@ -343,7 +343,7 @@ Primeras 5 noticias como muestra:
 {df[['Titulo']].head().to_string() if 'Titulo' in df.columns else 'N/A'}
 {prompt_cliente}"""}
             ],
-            model="llama3-70b-8192",
+            model="meta-llama-3.1-70b-instruct", # <-- CORREGIDO
             temperature=0.3,
             max_tokens=2000,
             response_format={"type": "json_object"}
@@ -390,7 +390,7 @@ INSTRUCCIONES:
         
         chat_completion = client.chat.completions.create(
             messages=mensajes,
-            model="llama3-70b-8192",
+            model="meta-llama-3.1-70b-instruct", # <-- CORREGIDO
             temperature=0.2,
             max_tokens=1500
         )
@@ -824,7 +824,6 @@ if st.session_state.get('analysis_done', False):
                 st.metric("🟡 Duplicados Similares", duplicados_similares)
         
         with col4:
-            # <-- CORREGIDO: Añadidos paréntesis a cada condición
             noticias_unicas = len(df[(~df.get('Es_Duplicado_Exacto', False)) & (~df.get('Es_Duplicado_Similar', False))])
             st.metric("✅ Noticias Únicas", noticias_unicas)
         
@@ -841,7 +840,6 @@ if st.session_state.get('analysis_done', False):
         with col_g1:
             if 'Sentimiento' in df.columns:
                 st.markdown("#### 💭 Distribución de Sentimientos")
-                # <-- CORREGIDO: Añadidos paréntesis a cada condición
                 df_unicos = df[(~df.get('Es_Duplicado_Exacto', False)) & (~df.get('Es_Duplicado_Similar', False))]
                 
                 fig_sentiment = px.pie(
@@ -863,7 +861,6 @@ if st.session_state.get('analysis_done', False):
         with col_g2:
             if 'Tema' in df.columns:
                 st.markdown("#### 🏷️ Top 10 Temas Descubiertos")
-                # <-- CORREGIDO: Añadidos paréntesis a cada condición
                 df_unicos = df[(~df.get('Es_Duplicado_Exacto', False)) & (~df.get('Es_Duplicado_Similar', False))]
                 temas_count = df_unicos['Tema'].value_counts().head(10)
                 
@@ -882,7 +879,6 @@ if st.session_state.get('analysis_done', False):
             st.markdown("---")
             st.markdown("#### 🎯 Sentimiento por Tema (Noticias Únicas)")
             
-            # <-- CORREGIDO: Añadidos paréntesis a cada condición
             df_unicos = df[(~df.get('Es_Duplicado_Exacto', False)) & (~df.get('Es_Duplicado_Similar', False))]
             
             if not df_unicos.empty:
@@ -954,7 +950,6 @@ if st.session_state.get('analysis_done', False):
             df_filtrado = df_filtrado[df_filtrado['Sentimiento'] == sentimiento_seleccionado]
         
         if tipo_duplicado == 'Solo Únicas':
-            # <-- CORREGIDO: Añadidos paréntesis a cada condición
             df_filtrado = df_filtrado[(~df_filtrado.get('Es_Duplicado_Exacto', False)) & (~df_filtrado.get('Es_Duplicado_Similar', False))]
         elif tipo_duplicado == 'Solo Duplicados Exactos':
             df_filtrado = df_filtrado[df_filtrado.get('Es_Duplicado_Exacto', False)]
@@ -1022,7 +1017,6 @@ if st.session_state.get('analysis_done', False):
         
         with col_d2:
             # Solo noticias únicas
-            # <-- CORREGIDO: Añadidos paréntesis a cada condición
             df_unicos = df[(~df.get('Es_Duplicado_Exacto', False)) & (~df.get('Es_Duplicado_Similar', False))]
             csv_unicos = df_unicos.to_csv(index=False).encode('utf-8')
             st.download_button(
@@ -1051,7 +1045,6 @@ if st.session_state.get('analysis_done', False):
                 st.metric("📑 Grupos Duplicados Similares", grupos_similares)
         
         with col_stat3:
-            # <-- CORREGIDO: Añadidos paréntesis a cada condición
             noticias_unicas = len(df[(~df.get('Es_Duplicado_Exacto', False)) & (~df.get('Es_Duplicado_Similar', False))])
             st.metric("✅ Noticias Únicas", noticias_unicas)
         
@@ -1254,8 +1247,8 @@ if st.button("🗑️ Reiniciar Análisis Completo"):
 
 st.markdown("""
 <div style='text-align: center; color: #666; margin-top: 2rem;'>
-    <p><strong>Analizador Inteligente de Noticias v2.3 (Corregido)</strong></p>
-    <p style='font-size: 0.9rem;'>🤖 Llama 3 70B (Groq) | 🏷️ Temas Dinámicos | 🔍 Detección Avanzada de Duplicados</p>
+    <p><strong>Analizador Inteligente de Noticias v2.4 (Modelo Llama 3.1)</strong></p>
+    <p style='font-size: 0.9rem;'>🤖 Llama 3.1 70B (Groq) | 🏷️ Temas Dinámicos | 🔍 Detección Avanzada de Duplicados</p>
     <p style='font-size: 0.85rem;'>✨ Selector flexible de columnas | Duplicados heredan análisis del original</p>
     <p style='font-size: 0.8rem; margin-top: 0.5rem;'>📊 Compatible con cualquier estructura de Excel</p>
 </div>
