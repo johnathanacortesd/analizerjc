@@ -630,7 +630,7 @@ if uploaded_file:
             status_text = st.empty()
             
             # Preparar textos para análisis
-            df['Texto_Completo'] = df['Titulo'].fillna('') + '. ' + df['Resumen'].fillna('')
+            df['Texto_Completo'] = df['Titulo'].fillna('').astype(str) + '. ' + df['Resumen'].fillna('').astype(str)
             textos = df['Texto_Completo'].tolist()
             
             # 1. Descubrir Temas Dinámicamente
