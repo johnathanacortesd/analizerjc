@@ -85,7 +85,7 @@ def detectar_duplicados_exactos(df):
     df['Es_Duplicado_Exacto'] = False
     df['Grupo_Duplicado_Exacto'] = -1
     
-    # Crear clave única asegurando que todo sea string
+    # Crear clave única
     df['_clave_duplicado'] = df['Empresa'].fillna('').astype(str).str.lower().str.strip() + '|||' + \
                              df['Titulo'].fillna('').astype(str).str.lower().str.strip() + '|||' + \
                              df['Medio'].fillna('').astype(str).str.lower().str.strip()
@@ -121,7 +121,7 @@ def detectar_duplicados_similares(df, umbral_similitud=0.85):
     df['Es_Duplicado_Similar'] = False
     df['Grupo_Duplicado_Similar'] = -1
     
-    # Agrupar por Empresa + Medio asegurando que todo sea string
+    # Agrupar por Empresa + Medio
     grupos_empresa_medio = df.groupby([df['Empresa'].fillna('').astype(str).str.lower().str.strip(), 
                                        df['Medio'].fillna('').astype(str).str.lower().str.strip()])
     
@@ -195,7 +195,7 @@ FORMATO DE SALIDA (JSON):
 }}"""},
                 {"role": "user", "content": f"Analiza estas {muestra_size} noticias y descubre los {num_temas} temas principales:\n\n{textos_muestra}"}
             ],
-            model="llama3-70b-8192", # <-- CORRECCIÓN 1
+            model="llama3-70b-8192", # <-- CORREGIDO: Modelo actualizado
             temperature=0.2,
             max_tokens=2000,
             response_format={"type": "json_object"}
@@ -243,7 +243,7 @@ FORMATO DE SALIDA (JSON):
 ]}}"""},
                     {"role": "user", "content": f"Analiza el sentimiento de estas noticias:\n\n{textos_numerados}"}
                 ],
-                model="llama3-70b-8192", # <-- CORRECCIÓN 2
+                model="llama3-70b-8192", # <-- CORREGIDO: Modelo actualizado
                 temperature=0.1,
                 max_tokens=3000,
                 response_format={"type": "json_object"}
@@ -290,7 +290,7 @@ FORMATO DE SALIDA (JSON):
 ]}}"""},
                     {"role": "user", "content": f"Clasifica estas noticias:\n\n{textos_numerados}"}
                 ],
-                model="llama3-70b-8192", # <-- CORRECCIÓN 3
+                model="llama3-70b-8192", # <-- CORREGIDO: Modelo actualizado
                 temperature=0.1,
                 max_tokens=2500,
                 response_format={"type": "json_object"}
@@ -343,7 +343,7 @@ Primeras 5 noticias como muestra:
 {df[['Titulo']].head().to_string() if 'Titulo' in df.columns else 'N/A'}
 {prompt_cliente}"""}
             ],
-            model="llama3-70b-8192", # <-- CORRECCIÓN 4
+            model="llama3-70b-8192", # <-- CORREGIDO: Modelo actualizado
             temperature=0.3,
             max_tokens=2000,
             response_format={"type": "json_object"}
@@ -363,8 +363,8 @@ DATASET DE NOTICIAS:
 - Columnas disponibles: {', '.join(df.columns)}
 - Temas principales: {df['Tema'].value_counts().head(3).to_dict() if 'Tema' in df.columns else 'N/A'}
 - Sentimientos: {df['Sentimiento'].value_counts().to_dict() if 'Sentimiento' in df.columns else 'N/A'}
-- Duplicados exactos: {len(df[df['Es_Duplicado_Exacto']]) if 'Es_Duplicado_Exacto' in df.columns else 0}
-- Duplicados similares: {len(df[df['Es_Duplicado_Similar']]) if 'Es_Duplicado_Similar' in df.columns else 0}
+- Duplicados exactos: {len(df[df.get('Es_Duplicado_Exacto', False)])}
+- Duplicados similares: {len(df[df.get('Es_Duplicado_Similar', False)])}
 
 MUESTRA DE DATOS (5 noticias):
 {df.head().to_string()}
@@ -390,7 +390,7 @@ INSTRUCCIONES:
         
         chat_completion = client.chat.completions.create(
             messages=mensajes,
-            model="llama3-70b-8192", # <-- CORRECCIÓN 5
+            model="llama3-70b-8192", # <-- CORREGIDO: Modelo actualizado
             temperature=0.2,
             max_tokens=1500
         )
@@ -586,15 +586,15 @@ if uploaded_file:
                 st.stop()
             
             # Crear DataFrame de trabajo con columnas renombradas
-            df = df_original.copy()
-            df['Titulo'] = df[col_titulo]
-            df['Resumen'] = df[col_resumen]
+            df = pd.DataFrame() # Crear un DF limpio
+            df['Titulo'] = df_original[col_titulo]
+            df['Resumen'] = df_original[col_resumen]
             
             if col_empresa != 'No usar':
-                df['Empresa'] = df[col_empresa]
+                df['Empresa'] = df_original[col_empresa]
             
             if col_medio != 'No usar':
-                df['Medio'] = df[col_medio]
+                df['Medio'] = df_original[col_medio]
             
             # Mostrar resumen de selección
             st.markdown("---")
@@ -606,9 +606,223 @@ if uploaded_file:
             with col_info2:
                 st.info(f"📝 **Resumen:**\n`{col_resumen}`")
             with col_info3:
-                if col_empresa != 'No usar':
+                if 'Empresa' in df.columns:
                     st.success(f"🏢 **Empresa:**\n`{col_empresa}`")
                 else:
                     st.warning("🏢 **Empresa:**\nNo configurada")
             with col_info4:
-                if col_medio != 'No usar':
+                if 'Medio' in df.columns:
+                    st.success(f"📡 **Medio:**\n`{col_medio}`")
+                else:
+                    st.warning("📡 **Medio:**\nNo configurado")
+            
+            # Vista previa de contenido procesado
+            st.markdown("---")
+            st.markdown("#### 📖 Vista Previa del Contenido Procesado")
+            
+            preview_df = pd.DataFrame({
+                'Título': df['Titulo'].head(3),
+                'Resumen': df['Resumen'].head(3).apply(lambda x: str(x)[:150] + '...' if pd.notna(x) and len(str(x)) > 150 else str(x))
+            })
+            
+            if 'Empresa' in df.columns:
+                preview_df['Empresa'] = df['Empresa'].head(3)
+            if 'Medio' in df.columns:
+                preview_df['Medio'] = df['Medio'].head(3)
+            
+            st.dataframe(preview_df, use_container_width=True, hide_index=True)
+        
+        # Validar columnas para duplicados
+        if detectar_duplicados:
+            columnas_faltantes = []
+            if 'Empresa' not in df.columns:
+                columnas_faltantes.append('Empresa')
+            if 'Medio' not in df.columns:
+                columnas_faltantes.append('Medio')
+            
+            if columnas_faltantes:
+                st.warning(f"⚠️ **Detección de duplicados limitada:** Para detección completa se recomiendan las columnas {', '.join(columnas_faltantes)}")
+            else:
+                st.success("✅ Todas las columnas necesarias para detección de duplicados están configuradas")
+        
+        # --- BOTÓN DE ANÁLISIS ---
+        if st.button("🚀 Iniciar Análisis Inteligente", type="primary", use_container_width=True):
+            st.session_state.analysis_done = False
+            st.session_state.chat_history = []
+            
+            progress_bar = st.progress(0)
+            status_text = st.empty()
+            
+            # Preparar textos para análisis
+            # <-- CORREGIDO: Convertido a string para evitar errores de tipo al concatenar
+            df['Texto_Completo'] = df['Titulo'].fillna('').astype(str) + '. ' + df['Resumen'].fillna('').astype(str)
+            textos = df['Texto_Completo'].tolist()
+            
+            # 1. Descubrir Temas Dinámicamente
+            if clasificar_temas:
+                status_text.text("🔍 Descubriendo temas automáticamente...")
+                progress_bar.progress(15)
+                
+                with st.spinner("Analizando el contenido para descubrir temas..."):
+                    temas_descubiertos = descubrir_temas_dinamicos(textos, num_temas)
+                    st.session_state.temas_descubiertos = temas_descubiertos
+                
+                st.success(f"✅ {len(temas_descubiertos)} temas descubiertos automáticamente")
+                with st.expander("📋 Ver temas descubiertos"):
+                    for i, tema in enumerate(temas_descubiertos, 1):
+                        st.markdown(f"{i}. **{tema}**")
+            
+            # 2. Detectar Duplicados
+            if detectar_duplicados:
+                status_text.text("🔍 Detectando duplicados...")
+                progress_bar.progress(30)
+                
+                # Duplicados exactos
+                df = detectar_duplicados_exactos(df)
+                num_duplicados_exactos = len(df[df['Es_Duplicado_Exacto']])
+                
+                # Duplicados similares
+                df = detectar_duplicados_similares(df, umbral_similitud/100)
+                num_duplicados_similares = len(df[df['Es_Duplicado_Similar']])
+                
+                st.info(f"📊 Duplicados exactos: {num_duplicados_exactos} | Duplicados similares: {num_duplicados_similares}")
+            
+            # 3. Análisis de Sentimiento (solo no duplicados)
+            if analizar_sentimiento:
+                status_text.text("💭 Analizando sentimiento...")
+                progress_bar.progress(50)
+                
+                # Filtrar no duplicados para análisis
+                mask_no_duplicados = ~(df.get('Es_Duplicado_Exacto', False) | df.get('Es_Duplicado_Similar', False))
+                df_analizar = df[mask_no_duplicados]
+                
+                textos_analizar = df_analizar['Texto_Completo'].tolist()
+                
+                if len(textos_analizar) > 0:
+                    resultados_sentimiento = analizar_sentimiento_batch(textos_analizar, cliente_foco)
+                    
+                    # Asignar resultados a no duplicados
+                    df.loc[mask_no_duplicados, 'Sentimiento'] = [r.get('sentimiento', 'Neutral') for r in resultados_sentimiento]
+                    df.loc[mask_no_duplicados, 'Score_Sentimiento'] = [r.get('score', 0) for r in resultados_sentimiento]
+                    df.loc[mask_no_duplicados, 'Razon_Sentimiento'] = [r.get('razon', '') for r in resultados_sentimiento]
+                    
+                    # Propagar sentimiento a duplicados del mismo grupo
+                    for grupo_col in ['Grupo_Duplicado_Exacto', 'Grupo_Duplicado_Similar']:
+                        if grupo_col in df.columns:
+                            for grupo_id in df[grupo_col].unique():
+                                if grupo_id >= 0:
+                                    grupo_mask = df[grupo_col] == grupo_id
+                                    # Encontrar el primero no duplicado del grupo (si existe)
+                                    primero_analizado = df[grupo_mask & mask_no_duplicados]
+                                    if not primero_analizado.empty:
+                                        sentimiento_grupo = primero_analizado.iloc[0]['Sentimiento']
+                                        score_grupo = primero_analizado.iloc[0]['Score_Sentimiento']
+                                        razon_grupo = primero_analizado.iloc[0]['Razon_Sentimiento']
+                                        
+                                        df.loc[grupo_mask, 'Sentimiento'] = sentimiento_grupo
+                                        df.loc[grupo_mask, 'Score_Sentimiento'] = score_grupo
+                                        df.loc[grupo_mask, 'Razon_Sentimiento'] = razon_grupo + " [Duplicado]"
+                    
+                    # Marcar duplicados sin análisis
+                    duplicados_sin_analisis = df[~mask_no_duplicados & df['Sentimiento'].isna()]
+                    if not duplicados_sin_analisis.empty:
+                        df.loc[duplicados_sin_analisis.index, 'Sentimiento'] = 'Sin Analizar'
+                        df.loc[duplicados_sin_analisis.index, 'Score_Sentimiento'] = 0
+                        df.loc[duplicados_sin_analisis.index, 'Razon_Sentimiento'] = 'Duplicado sin análisis'
+            
+            # 4. Clasificación Temática (solo no duplicados)
+            if clasificar_temas and 'temas_descubiertos' in st.session_state:
+                status_text.text("🏷️ Clasificando temas...")
+                progress_bar.progress(70)
+                
+                temas_disponibles = st.session_state.temas_descubiertos
+                
+                # Filtrar no duplicados
+                mask_no_duplicados = ~(df.get('Es_Duplicado_Exacto', False) | df.get('Es_Duplicado_Similar', False))
+                df_analizar = df[mask_no_duplicados]
+                
+                textos_analizar = df_analizar['Texto_Completo'].tolist()
+                
+                if len(textos_analizar) > 0:
+                    resultados_temas = clasificar_temas_batch(textos_analizar, temas_disponibles)
+                    
+                    # Asignar resultados
+                    df.loc[mask_no_duplicados, 'Tema'] = [r.get('tema', 'Sin clasificar') for r in resultados_temas]
+                    df.loc[mask_no_duplicados, 'Confianza_Tema'] = [r.get('confianza', 0) for r in resultados_temas]
+                    
+                    # Propagar tema a duplicados del mismo grupo
+                    for grupo_col in ['Grupo_Duplicado_Exacto', 'Grupo_Duplicado_Similar']:
+                        if grupo_col in df.columns:
+                            for grupo_id in df[grupo_col].unique():
+                                if grupo_id >= 0:
+                                    grupo_mask = df[grupo_col] == grupo_id
+                                    primero_analizado = df[grupo_mask & mask_no_duplicados]
+                                    if not primero_analizado.empty:
+                                        tema_grupo = primero_analizado.iloc[0]['Tema']
+                                        confianza_grupo = primero_analizado.iloc[0]['Confianza_Tema']
+                                        
+                                        df.loc[grupo_mask, 'Tema'] = tema_grupo
+                                        df.loc[grupo_mask, 'Confianza_Tema'] = confianza_grupo
+                    
+                    # Marcar duplicados sin clasificar
+                    duplicados_sin_clasificar = df[~mask_no_duplicados & df['Tema'].isna()]
+                    if not duplicados_sin_clasificar.empty:
+                        df.loc[duplicados_sin_clasificar.index, 'Tema'] = 'Sin clasificar'
+                        df.loc[duplicados_sin_clasificar.index, 'Confianza_Tema'] = 0
+            
+            # 5. Insights Estratégicos
+            if generar_insights:
+                status_text.text("🧠 Generando insights...")
+                progress_bar.progress(90)
+                
+                insights = generar_insights_estrategicos(df, cliente_foco)
+                st.session_state.insights = insights
+            
+            progress_bar.progress(100)
+            status_text.text("✅ ¡Análisis completado!")
+            
+            st.session_state.df_analizado = df
+            st.session_state.analysis_done = True
+            st.balloons()
+            
+    except Exception as e:
+        st.error(f"❌ Error al procesar el archivo: {e}")
+        st.exception(e) # Imprime el traceback completo para depuración
+
+# --- MOSTRAR RESULTADOS ---
+if st.session_state.get('analysis_done', False):
+    df = st.session_state.df_analizado
+    
+    st.markdown("---")
+    
+    # TABS PRINCIPALES
+    tabs = st.tabs([
+        "📊 Dashboard", 
+        "🗂️ Datos Analizados", 
+        "🔍 Duplicados",
+        "🧠 Insights", 
+        "💬 Chat IA"
+    ])
+    
+    # TAB 1: DASHBOARD
+    with tabs[0]:
+        st.subheader("📊 Dashboard de Análisis")
+        
+        # Métricas principales
+        col1, col2, col3, col4, col5 = st.columns(5)
+        
+        with col1:
+            st.metric("📰 Total Noticias", len(df))
+        
+        with col2:
+            if 'Es_Duplicado_Exacto' in df.columns:
+                duplicados_exactos = len(df[df['Es_Duplicado_Exacto']])
+                st.metric("🔴 Duplicados Exactos", duplicados_exactos)
+        
+        with col3:
+            if 'Es_Duplicado_Similar' in df.columns:
+                duplicados_similares = len(df[df['Es_Duplicado_Similar']])
+                st.metric("🟡 Duplicados Similares", duplicados_similares)
+        
+        with col4:
+            noticias_unicas = len(df[~df.get('Es_Duplicado_Exacto', False) & ~df.get('Es_Duplicado_Similar',
