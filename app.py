@@ -231,7 +231,12 @@ def chat_con_datos(pregunta, df, historial):
         system_prompt = f"Eres un analista de datos experto. Tu conocimiento se basa EXCLUSIVAMENTE en el siguiente resumen del dataset. Responde a las preguntas del usuario de forma precisa y basándote en los datos. Si te piden un cálculo, usa las estadísticas disponibles. Si la pregunta no se puede responder con el contexto, indícalo claramente.\n\nCONTEXTO:\n{contexto_datos}"
         
         mensajes = [{"role": "system", "content": system_prompt}]
-        mensajes.extend([{"role": "user", "content": item["pregunta"]}, {"role": "assistant", "content": item["respuesta"]}] for item in historial[-5:])
+        
+        # Corregir la forma en que se extiende la lista de mensajes
+        for item in historial[-5:]:
+            mensajes.append({"role": "user", "content": item["pregunta"]})
+            mensajes.append({"role": "assistant", "content": item["respuesta"]})
+        
         mensajes.append({"role": "user", "content": pregunta})
         
         chat_completion = client.chat.completions.create(messages=mensajes, model=MODELO_IA, temperature=0.2, max_tokens=2000)
@@ -257,7 +262,7 @@ with st.sidebar:
     generar_insights = st.checkbox("🧠 Insights Estratégicos IA", value=True)
 
 st.subheader("📤 1. Sube tu archivo Excel")
-uploaded_file = st.file_uploader("El archivo puede tener cualquier estructura de columnas.", type=['xlsx', 'xls'])
+uploaded_file = st.file_uploader("El archivo puede tener cualquier estructura de columnas.", type=['xlsx', 'xls'], label_visibility="collapsed")
 
 if uploaded_file:
     try:
@@ -311,54 +316,56 @@ if uploaded_file:
             st.session_state.analysis_done = False
             st.session_state.chat_history = []
             
-            progress_bar = st.progress(0, text="Iniciando análisis...")
-            
-            df['Texto_Completo'] = df['Titulo'].fillna('').astype(str) + '. ' + df['Resumen'].fillna('').astype(str)
-            textos = df['Texto_Completo'].tolist()
-            
-            if clasificar_temas:
-                progress_bar.progress(10, text="🔍 Descubriendo temas...")
-                temas_descubiertos = descubrir_temas_dinamicos(textos, num_temas)
-                st.session_state.temas_descubiertos = temas_descubiertos
-            
-            if detectar_duplicados:
-                progress_bar.progress(25, text="🔍 Detectando duplicados...")
-                df = detectar_duplicados_exactos(df)
-                df = detectar_duplicados_similares(df, umbral_similitud/100)
-            
-            mask_no_duplicados = ~(df.get('Es_Duplicado_Exacto', False)) & ~(df.get('Es_Duplicado_Similar', False))
-            textos_unicos = df.loc[mask_no_duplicados, 'Texto_Completo'].tolist()
+            with st.spinner("Realizando análisis completo... Esto puede tardar unos minutos."):
+                progress_bar = st.progress(0, text="Iniciando análisis...")
+                
+                df['Texto_Completo'] = df['Titulo'].fillna('').astype(str) + '. ' + df['Resumen'].fillna('').astype(str)
+                textos = df['Texto_Completo'].tolist()
+                
+                if clasificar_temas:
+                    progress_bar.progress(10, text="🔍 Descubriendo temas...")
+                    temas_descubiertos = descubrir_temas_dinamicos(textos, num_temas)
+                    st.session_state.temas_descubiertos = temas_descubiertos
+                
+                if detectar_duplicados:
+                    progress_bar.progress(25, text="🔍 Detectando duplicados...")
+                    df = detectar_duplicados_exactos(df)
+                    df = detectar_duplicados_similares(df, umbral_similitud/100)
+                
+                mask_no_duplicados = ~(df.get('Es_Duplicado_Exacto', False)) & ~(df.get('Es_Duplicado_Similar', False))
+                textos_unicos = df.loc[mask_no_duplicados, 'Texto_Completo'].tolist()
 
-            if analizar_sentimiento and textos_unicos:
-                progress_bar.progress(40, text="💭 Analizando sentimiento...")
-                resultados_sentimiento = analizar_sentimiento_batch(textos_unicos, cliente_foco)
-                df.loc[mask_no_duplicados, 'Sentimiento'] = [r.get('sentimiento', 'Neutral') for r in resultados_sentimiento]
-                df.loc[mask_no_duplicados, 'Score_Sentimiento'] = [r.get('score', 0) for r in resultados_sentimiento]
-                df.loc[mask_no_duplicados, 'Razon_Sentimiento'] = [r.get('razon', '') for r in resultados_sentimiento]
+                if analizar_sentimiento and textos_unicos:
+                    progress_bar.progress(40, text="💭 Analizando sentimiento...")
+                    resultados_sentimiento = analizar_sentimiento_batch(textos_unicos, cliente_foco)
+                    df.loc[mask_no_duplicados, 'Sentimiento'] = [r.get('sentimiento', 'Neutral') for r in resultados_sentimiento]
+                    df.loc[mask_no_duplicados, 'Score_Sentimiento'] = [r.get('score', 0) for r in resultados_sentimiento]
+                    df.loc[mask_no_duplicados, 'Razon_Sentimiento'] = [r.get('razon', '') for r in resultados_sentimiento]
 
-            if clasificar_temas and 'temas_descubiertos' in st.session_state and textos_unicos:
-                progress_bar.progress(65, text="🏷️ Clasificando noticias en temas...")
-                resultados_temas = clasificar_temas_batch(textos_unicos, st.session_state.temas_descubiertos)
-                df.loc[mask_no_duplicados, 'Tema'] = [r.get('tema', 'Sin clasificar') for r in resultados_temas]
+                if clasificar_temas and 'temas_descubiertos' in st.session_state and textos_unicos:
+                    progress_bar.progress(65, text="🏷️ Clasificando noticias en temas...")
+                    resultados_temas = clasificar_temas_batch(textos_unicos, st.session_state.temas_descubiertos)
+                    df.loc[mask_no_duplicados, 'Tema'] = [r.get('tema', 'Sin clasificar') for r in resultados_temas]
 
-            # Propagar análisis a duplicados
-            for grupo_col in ['Grupo_Duplicado_Exacto', 'Grupo_Duplicado_Similar']:
-                if grupo_col in df.columns:
-                    for grupo_id in df[df[grupo_col] >= 0][grupo_col].unique():
-                        grupo_mask = df[grupo_col] == grupo_id
-                        original = df[grupo_mask & mask_no_duplicados]
-                        if not original.empty:
-                            if analizar_sentimiento:
-                                df.loc[grupo_mask, 'Sentimiento'] = original.iloc[0]['Sentimiento']
-                                df.loc[grupo_mask, 'Score_Sentimiento'] = original.iloc[0]['Score_Sentimiento']
-                            if clasificar_temas:
-                                df.loc[grupo_mask, 'Tema'] = original.iloc[0]['Tema']
+                # Propagar análisis a duplicados
+                for grupo_col in ['Grupo_Duplicado_Exacto', 'Grupo_Duplicado_Similar']:
+                    if grupo_col in df.columns:
+                        for grupo_id in df[df[grupo_col] >= 0][grupo_col].unique():
+                            grupo_mask = df[grupo_col] == grupo_id
+                            original = df[grupo_mask & mask_no_duplicados]
+                            if not original.empty:
+                                if analizar_sentimiento and 'Sentimiento' in original.columns:
+                                    df.loc[grupo_mask, 'Sentimiento'] = original.iloc[0]['Sentimiento']
+                                    df.loc[grupo_mask, 'Score_Sentimiento'] = original.iloc[0]['Score_Sentimiento']
+                                if clasificar_temas and 'Tema' in original.columns:
+                                    df.loc[grupo_mask, 'Tema'] = original.iloc[0]['Tema']
 
-            if generar_insights:
-                progress_bar.progress(85, text="🧠 Generando insights estratégicos...")
-                st.session_state.insights = generar_insights_estrategicos(df, cliente_foco)
+                if generar_insights:
+                    progress_bar.progress(85, text="🧠 Generando insights estratégicos...")
+                    st.session_state.insights = generar_insights_estrategicos(df, cliente_foco)
+                
+                progress_bar.progress(100, text="✅ ¡Análisis completado!")
             
-            progress_bar.progress(100, text="✅ ¡Análisis completado!")
             st.session_state.df_analizado = df
             st.session_state.analysis_done = True
             st.balloons()
@@ -389,17 +396,16 @@ if st.session_state.get('analysis_done', False):
             col1, col2 = st.columns(2)
             with col1:
                 st.markdown("#### ✅ Oportunidades Estratégicas")
-                for op in insights.get('oportunidades_estrategicas', []): st.success(f"- {op}")
+                for op in insights.get('oportunidades_estrategicas', []): st.success(f"• {op}")
             with col2:
                 st.markdown("#### ⚠️ Riesgos Emergentes")
-                for risk in insights.get('riesgos_emergentes', []): st.warning(f"- {risk}")
+                for risk in insights.get('riesgos_emergentes', []): st.warning(f"• {risk}")
             st.markdown("#### 💡 Recomendaciones Accionables")
-            for rec in insights.get('recomendaciones_accionables', []): st.markdown(f"**- {rec}**")
+            for rec in insights.get('recomendaciones_accionables', []): st.markdown(f"**• {rec}**")
         else: st.warning("No se generaron insights. Habilita el módulo en el sidebar y vuelve a analizar.")
     
     with tabs[1]:
         st.subheader("Dashboard General")
-        # Métricas principales
         unicas_mask = (~df.get('Es_Duplicado_Exacto', False)) & (~df.get('Es_Duplicado_Similar', False))
         col1, col2, col3, col4 = st.columns(4)
         col1.metric("Total Menciones", len(df))
@@ -407,59 +413,66 @@ if st.session_state.get('analysis_done', False):
         if 'Audiencia' in df.columns: col3.metric("Audiencia Total", f"{pd.to_numeric(df['Audiencia'], errors='coerce').sum():,.0f}")
         if 'CPE' in df.columns: col4.metric("CPE Acumulado", f"${pd.to_numeric(df['CPE'], errors='coerce').sum():,.0f}")
 
-        # Gráficos
         df_unicos = df[unicas_mask]
         colg1, colg2 = st.columns(2)
         with colg1:
             if 'Sentimiento' in df_unicos.columns:
                 st.markdown("##### Distribución de Sentimiento (Únicas)")
                 fig = px.pie(df_unicos, names='Sentimiento', color='Sentimiento', hole=.3,
-                             color_discrete_map={'Muy Positivo':'green', 'Positivo':'lightgreen', 'Neutral':'grey', 'Negativo':'orange', 'Muy Negativo':'red'})
+                             color_discrete_map={'Muy Positivo':'#2ECC71', 'Positivo':'#85C1E2', 'Neutral':'#BDC3C7', 'Negativo':'#F39C12', 'Muy Negativo':'#E74C3C'})
                 st.plotly_chart(fig, use_container_width=True)
         with colg2:
             if 'Tema' in df_unicos.columns:
                 st.markdown("##### Top Temas (Únicas)")
                 top_temas = df_unicos['Tema'].value_counts().nlargest(10).sort_values()
-                fig = px.bar(top_temas, x=top_temas.values, y=top_temas.index, orientation='h')
+                fig = px.bar(top_temas, x=top_temas.values, y=top_temas.index, orientation='h', text_auto=True)
+                fig.update_layout(yaxis_title=None)
                 st.plotly_chart(fig, use_container_width=True)
 
     with tabs[2]:
         st.subheader("Explorador de Datos Analizados")
-        st.dataframe(df, use_container_width=True)
+        st.dataframe(df, use_container_width=True, height=500)
         csv = df.to_csv(index=False).encode('utf-8')
         st.download_button("💾 Descargar CSV Completo", csv, "analisis_noticias.csv", "text/csv", use_container_width=True)
 
     with tabs[3]:
         st.subheader("Análisis de Duplicados")
         tipo_ver = st.radio("Ver duplicados:", ['Exactos', 'Similares'], horizontal=True, label_visibility="collapsed")
+        
         if tipo_ver == 'Exactos' and 'Grupo_Duplicado_Exacto' in df.columns:
             grupos = df[df['Grupo_Duplicado_Exacto'] >= 0].groupby('Grupo_Duplicado_Exacto')
             st.info(f"Se encontraron {len(grupos)} grupos de duplicados exactos.")
-            for id, grupo in grupos:
-                with st.expander(f"Grupo {id+1} ({len(grupo)} menciones): {grupo.iloc[0]['Titulo'][:50]}..."):
-                    st.dataframe(grupo)
+            for id_grupo, grupo in grupos:
+                # --- CORRECCIÓN AQUÍ ---
+                if not grupo.empty:
+                    with st.expander(f"Grupo {id_grupo+1} ({len(grupo)} menciones): {grupo.iloc[0]['Titulo'][:60]}..."):
+                        st.dataframe(grupo, use_container_width=True)
+
         elif tipo_ver == 'Similares' and 'Grupo_Duplicado_Similar' in df.columns:
             grupos = df[df['Grupo_Duplicado_Similar'] >= 0].groupby('Grupo_Duplicado_Similar')
             st.info(f"Se encontraron {len(grupos)} grupos de duplicados similares.")
-            for id, grupo in grupos:
-                with st.expander(f"Grupo {id+1} ({len(grupo)} menciones): {grupo.iloc[0]['Titulo'][:50]}..."):
-                    st.dataframe(grupo)
+            for id_grupo, grupo in grupos:
+                # --- CORRECCIÓN AQUÍ ---
+                if not grupo.empty:
+                    with st.expander(f"Grupo {id_grupo+1} ({len(grupo)} menciones): {grupo.iloc[0]['Titulo'][:60]}..."):
+                        st.dataframe(grupo, use_container_width=True)
 
     with tabs[4]:
-        st.subheader("Chat Inteligente con tus Datos")
+        st.subheader("💬 Chat Inteligente con tus Datos")
         for item in st.session_state.chat_history:
             with st.chat_message("user"): st.markdown(item["pregunta"])
             with st.chat_message("assistant"): st.markdown(item["respuesta"])
         
-        if prompt := st.chat_input("Pregúntale algo a tus datos..."):
-            st.session_state.chat_history.append({"pregunta": prompt, "respuesta": "..."})
-            st.rerun()
-            with st.chat_message("user"): st.markdown(prompt)
+        if prompt := st.chat_input("Pregúntale algo a tus datos... (ej. ¿Cuál es el tema con peor sentimiento?)"):
+            st.chat_message("user").markdown(prompt)
+            st.session_state.chat_history.append({"pregunta": prompt, "respuesta": ""})
+
             with st.chat_message("assistant"):
                 with st.spinner("Pensando..."):
                     respuesta = chat_con_datos(prompt, df, st.session_state.chat_history)
                     st.markdown(respuesta)
-            st.session_state.chat_history[-1] = {"pregunta": prompt, "respuesta": respuesta}
+            
+            st.session_state.chat_history[-1]["respuesta"] = respuesta
             st.rerun()
 
 # --- Pie de página ---
