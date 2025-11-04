@@ -52,7 +52,7 @@ if not st.session_state.password_correct:
 try:
     api_key = st.secrets["GROQ_API_KEY"]
     client = Groq(api_key=api_key)
-    MODELO_IA = "llama3.1-70b-versatile" # Modelo centralizado y actualizado
+    MODELO_IA = "llama-3.3-70b-versatile" # Modelo centralizado y actualizado
 except KeyError:
     st.error("❌ Configure GROQ_API_KEY en Secrets")
     st.stop()
